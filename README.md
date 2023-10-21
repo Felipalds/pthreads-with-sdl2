@@ -1,4 +1,4 @@
-# pthreads with sdl2 - A operating systems subject work
+# pthreads with sdl2 - An operating systems subject work
 > A masterpiece of computer science!
 
 ## How does it works?
