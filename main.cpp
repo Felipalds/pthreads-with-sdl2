@@ -1,10 +1,36 @@
 #include <iostream>
 #include <SDL2/SDL.h>
+#include <random>
+#include <thread>
+#include <chrono>
+#include <vector>
+#include <pthread.h>
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
+const int THREAD_AMOUNT = 4;
+int IN;
+int N = 50;
 
 using namespace std;
+
+typedef struct Point {
+    int x;
+    int y;
+} Point;
+
+typedef struct Color {
+    int r;
+    int g;
+    int b;
+} Color;
+
+typedef struct Quadrant {
+    int x0;
+    int x1;
+    int y0;
+    int y1;
+} Quadrant;
 
 void MidpointCircleAlgorithm(
     SDL_Renderer *renderer, 
@@ -21,8 +47,6 @@ void MidpointCircleAlgorithm(
     int error = tx - diameter;
 
     while(x >= y) {
-        cout << x << " " << y << endl;
-        cout << error << endl;
 
         SDL_RenderDrawPoint(renderer, circleCenterX + x, circleCenterY - y);
         SDL_RenderDrawPoint(renderer, circleCenterX + x, circleCenterY + y);
@@ -69,8 +93,70 @@ void DrawCircle(SDL_Renderer *renderer) {
     MidpointCircleAlgorithm(renderer, circleCenterX, circleCenterY, circleRadius);
 }
 
+void DrawPoint(SDL_Renderer *renderer, int x, int y){
+    const int radius = 5;
+
+    for(int dx = -radius; dx <= radius; dx++) {
+        for(int dy = -radius; dy <= radius; dy++) {
+            if(dx * dx + dy * dy <= radius * radius) {
+                SDL_RenderDrawPoint(renderer, x + dx, y + dy);
+            }
+        }
+    }
+}
+
+int getRandom(int maxX, int maxY) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(maxX, maxY);
+    return dis(gen);
+}
+
+void verifyPI(Point p) {
+    // se distância do ponto até o centro for maior que o raio, está fora!
+    const int distance = sqrt((WINDOW_WIDTH/2)*(WINDOW_WIDTH/2) -(p.x * p.x) + (WINDOW_HEIGHT/2)*(WINDOW_HEIGHT/2)-(p.y * p.y));
+    const int circleRadius = std::min(WINDOW_WIDTH, WINDOW_HEIGHT) / 2;
+
+
+    printf("distance: %d \n", distance);
+    if(distance <= circleRadius) {
+        IN++;
+    }
+}
+
+void DrawRandomPoints(SDL_Renderer *renderer, std::vector<Point>& points, Color color, Quadrant quadrant){
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+
+    Point p;
+    p.x = getRandom(quadrant.x0, quadrant.x1);
+    p.y = getRandom(quadrant.y0, quadrant.y1);
+    cout << p.x << " " << p.y << endl;
+    points.push_back(p);
+
+    for(const Point& point : points) {
+        DrawPoint(renderer, point.x, point.y);
+    }
+
+    verifyPI(p);
+}
+
+
+
 int main(int argc, char *argv[]){
-    
+
+    std::vector<Point> points1;
+    std::vector<Point> points2;
+    std::vector<Point> points3;
+    std::vector<Point> points4;
+    Color color1 = {255, 0, 0};
+    Color color2 = {0, 255, 0};
+    Color color3 = {0, 0, 255};
+    Color color4 = {0, 0, 0};
+    Quadrant q1 = {0, 400, 0, 400};
+    Quadrant q2 = {400, 800, 0, 400};
+    Quadrant q3 = {0, 400, 400, 800};
+    Quadrant q4 = {400, 800, 400, 800};
+
     if(SDL_Init(SDL_INIT_VIDEO) < 0) {
         return 1;
     }
@@ -103,7 +189,7 @@ int main(int argc, char *argv[]){
     }
 
     bool quit = false;
-    while(!quit) {
+    for(int x = 0; x < N; x++) {
         SDL_Event event;
         while(SDL_PollEvent(&event) != 0) {
             if(event.type == SDL_QUIT) {
@@ -112,10 +198,16 @@ int main(int argc, char *argv[]){
         }
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         SDL_RenderClear(renderer);
-
         DrawCircle(renderer);
-
+        
+        DrawRandomPoints(renderer, points1, color1, q1);
+        DrawRandomPoints(renderer, points2, color2, q2);
+        DrawRandomPoints(renderer, points3, color3, q3);
+        DrawRandomPoints(renderer, points4, color4, q4);
         SDL_RenderPresent(renderer);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        const float PI = float(IN)/float(N);
+        cout << PI << endl;
     }
 
     SDL_DestroyRenderer(renderer);
