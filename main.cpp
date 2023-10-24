@@ -10,7 +10,7 @@ const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
 const int THREAD_AMOUNT = 4;
 int IN;
-int N = 50;
+int N = 300;
 
 using namespace std;
 
@@ -105,11 +105,20 @@ void DrawPoint(SDL_Renderer *renderer, int x, int y){
     }
 }
 
+
+
 int getRandom(int maxX, int maxY) {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(maxX, maxY);
     return dis(gen);
+}
+
+void animateForVitor(std::vector<Point>& points) {
+    for(Point& point : points) {
+        point.x += 10;
+        point.y += 10;
+    }
 }
 
 void verifyPI(Point p) {
@@ -199,13 +208,21 @@ int main(int argc, char *argv[]){
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         SDL_RenderClear(renderer);
         DrawCircle(renderer);
+        //animateForVitor(points1);
+        // animateForVitor(points2);
+        // animateForVitor(points3);
+        // animateForVitor(points4);
+
         
+        //pthreads!!!
         DrawRandomPoints(renderer, points1, color1, q1);
         DrawRandomPoints(renderer, points2, color2, q2);
         DrawRandomPoints(renderer, points3, color3, q3);
         DrawRandomPoints(renderer, points4, color4, q4);
         SDL_RenderPresent(renderer);
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        //std::this_thread::sleep_for(std::chrono::seconds(1));
+
         const float PI = float(IN)/float(N);
         cout << PI << endl;
     }
