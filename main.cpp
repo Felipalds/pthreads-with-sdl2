@@ -5,6 +5,7 @@
 #include <chrono>
 #include <vector>
 #include <pthread.h>
+#include <semaphore.h>
 
 const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
@@ -38,6 +39,7 @@ typedef struct Args {
     std::vector<Point>& points;
     Color color;
     Quadrant quadrant;
+    sem_t* semaphore;
 } Args;
 
 
@@ -142,30 +144,35 @@ void verifyPI(Point p) {
 
 void* DrawRandomPoints(void* _args){
     Args* args = (Args*)_args;
-    SDL_Renderer *renderer = args->renderer;
     Color color = args->color;
     Quadrant quadrant = args->quadrant;
     std::vector<Point>& points = args->points;
 
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
-    cout << renderer;
 
     Point p;
     p.x = getRandom(quadrant.x0, quadrant.x1);
     p.y = getRandom(quadrant.y0, quadrant.y1);
     points.push_back(p);
 
+    sem_wait(args->semaphore);
+    SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, 255);
     for(const Point& point : points) {
-        DrawPoint(renderer, point.x, point.y);
+        DrawPoint(args->renderer, point.x, point.y);
     }
-
     verifyPI(p);
-    SDL_RenderPresent(renderer);
+    sem_post(args->semaphore);
+
 
     return NULL;
 }
 
 int main(int argc, char *argv[]){
+
+    sem_t* semaphore = sem_open("/my_semaphore", O_CREAT, 0644, 1);
+    if(semaphore == SEM_FAILED){
+        perror("Error while creating semaphore");
+        exit(-1);
+    }
 
     std::vector<Point> points1;
     std::vector<Point> points2;
@@ -187,16 +194,6 @@ int main(int argc, char *argv[]){
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
 
-    Args arg1 = {renderer, points1, color1, q1};
-    Args arg2 = {renderer, points2, color2, q2};
-    Args arg3 = {renderer, points3, color3, q3};
-    Args arg4 = {renderer, points4, color4, q4};
-    
-    std::vector<Args> args_vector;
-    args_vector.push_back(arg1);
-    args_vector.push_back(arg2);
-    args_vector.push_back(arg3);
-    args_vector.push_back(arg4);
 
     
     window = SDL_CreateWindow(
@@ -222,6 +219,18 @@ int main(int argc, char *argv[]){
         SDL_Quit();
         return 1;
     }
+
+
+    Args arg1 = {renderer, points1, color1, q1, semaphore};
+    Args arg2 = {renderer, points2, color2, q2, semaphore};
+    Args arg3 = {renderer, points3, color3, q3, semaphore};
+    Args arg4 = {renderer, points4, color4, q4, semaphore};
+    
+    std::vector<Args> args_vector;
+    args_vector.push_back(arg1);
+    args_vector.push_back(arg2);
+    args_vector.push_back(arg3);
+    args_vector.push_back(arg4);
 
     bool quit = false;
     for(int x = 0; x < N; x++) {
