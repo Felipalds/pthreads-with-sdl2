@@ -14,6 +14,7 @@ int N = 300;
 
 using namespace std;
 
+
 typedef struct Point {
     int x;
     int y;
@@ -31,6 +32,14 @@ typedef struct Quadrant {
     int y0;
     int y1;
 } Quadrant;
+
+typedef struct Args {
+    SDL_Renderer *renderer;
+    std::vector<Point>& points;
+    Color color;
+    Quadrant quadrant;
+} Args;
+
 
 void MidpointCircleAlgorithm(
     SDL_Renderer *renderer, 
@@ -105,8 +114,6 @@ void DrawPoint(SDL_Renderer *renderer, int x, int y){
     }
 }
 
-
-
 int getRandom(int maxX, int maxY) {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -114,6 +121,9 @@ int getRandom(int maxX, int maxY) {
     return dis(gen);
 }
 
+/*
+    Function made for my friend Vitor, to show him how does SDL animations works :D
+*/
 void animateForVitor(std::vector<Point>& points) {
     for(Point& point : points) {
         point.x += 10;
@@ -125,21 +135,24 @@ void verifyPI(Point p) {
     // se distância do ponto até o centro for maior que o raio, está fora!
     const int distance = sqrt((WINDOW_WIDTH/2)*(WINDOW_WIDTH/2) -(p.x * p.x) + (WINDOW_HEIGHT/2)*(WINDOW_HEIGHT/2)-(p.y * p.y));
     const int circleRadius = std::min(WINDOW_WIDTH, WINDOW_HEIGHT) / 2;
-
-
-    printf("distance: %d \n", distance);
     if(distance <= circleRadius) {
         IN++;
     }
 }
 
-void DrawRandomPoints(SDL_Renderer *renderer, std::vector<Point>& points, Color color, Quadrant quadrant){
+void* DrawRandomPoints(void* _args){
+    Args* args = (Args*)_args;
+    SDL_Renderer *renderer = args->renderer;
+    Color color = args->color;
+    Quadrant quadrant = args->quadrant;
+    std::vector<Point>& points = args->points;
+
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, 255);
+    cout << renderer;
 
     Point p;
     p.x = getRandom(quadrant.x0, quadrant.x1);
     p.y = getRandom(quadrant.y0, quadrant.y1);
-    cout << p.x << " " << p.y << endl;
     points.push_back(p);
 
     for(const Point& point : points) {
@@ -147,9 +160,10 @@ void DrawRandomPoints(SDL_Renderer *renderer, std::vector<Point>& points, Color 
     }
 
     verifyPI(p);
+    SDL_RenderPresent(renderer);
+
+    return NULL;
 }
-
-
 
 int main(int argc, char *argv[]){
 
@@ -172,6 +186,18 @@ int main(int argc, char *argv[]){
     
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
+
+    Args arg1 = {renderer, points1, color1, q1};
+    Args arg2 = {renderer, points2, color2, q2};
+    Args arg3 = {renderer, points3, color3, q3};
+    Args arg4 = {renderer, points4, color4, q4};
+    
+    std::vector<Args> args_vector;
+    args_vector.push_back(arg1);
+    args_vector.push_back(arg2);
+    args_vector.push_back(arg3);
+    args_vector.push_back(arg4);
+
     
     window = SDL_CreateWindow(
         "PTHREADS and SDL2 for OS!", 
@@ -208,17 +234,23 @@ int main(int argc, char *argv[]){
         SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
         SDL_RenderClear(renderer);
         DrawCircle(renderer);
-        //animateForVitor(points1);
-        // animateForVitor(points2);
-        // animateForVitor(points3);
-        // animateForVitor(points4);
 
-        
-        //pthreads!!!
-        DrawRandomPoints(renderer, points1, color1, q1);
-        DrawRandomPoints(renderer, points2, color2, q2);
-        DrawRandomPoints(renderer, points3, color3, q3);
-        DrawRandomPoints(renderer, points4, color4, q4);
+        pthread_t threads [THREAD_AMOUNT];
+        for (int t = 0; t < THREAD_AMOUNT; t++) {
+            cout << "Creating a Thread! " << t << endl;
+            int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
+
+            if(rc) {
+                cerr << "Error creating a thread number " << t << endl;
+                exit(-1);
+            }
+        }
+
+        for(int t = 0; t < THREAD_AMOUNT; t++) {
+            cout << "Joinning a thread " << t << endl;
+            pthread_join(threads[t], NULL);
+        }
+
         SDL_RenderPresent(renderer);
 
         //std::this_thread::sleep_for(std::chrono::seconds(1));
