@@ -36,7 +36,7 @@ typedef struct Quadrant {
 
 typedef struct Args {
     SDL_Renderer *renderer;
-    std::vector<Point>& points;
+    int points;
     Color color;
     Quadrant quadrant;
     sem_t* semaphore;
@@ -146,22 +146,21 @@ void* DrawRandomPoints(void* _args){
     Args* args = (Args*)_args;
     Color color = args->color;
     Quadrant quadrant = args->quadrant;
-    std::vector<Point>& points = args->points;
+    int npoints = args->points;
 
+    for (int c = 0; c < npoints; c++) {
+        Point p;
+        p.x = getRandom(quadrant.x0, quadrant.x1);
+        p.y = getRandom(quadrant.y0, quadrant.y1);
 
-    Point p;
-    p.x = getRandom(quadrant.x0, quadrant.x1);
-    p.y = getRandom(quadrant.y0, quadrant.y1);
-    points.push_back(p);
-
-    sem_wait(args->semaphore);
-    SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, 255);
-    for(const Point& point : points) {
-        DrawPoint(args->renderer, point.x, point.y);
+        sem_wait(args->semaphore);
+        SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, 255);
+        DrawPoint(args->renderer, p.x, p.y);
+        verifyPI(p);
+        SDL_RenderPresent(args->renderer);
+        sem_post(args->semaphore);
     }
-    verifyPI(p);
-    sem_post(args->semaphore);
-
+    cout << "ended" << endl;
 
     return NULL;
 }
@@ -173,11 +172,8 @@ int main(int argc, char *argv[]){
         perror("Error while creating semaphore");
         exit(-1);
     }
+    cout << "Semaphore created!" << endl;
 
-    std::vector<Point> points1;
-    std::vector<Point> points2;
-    std::vector<Point> points3;
-    std::vector<Point> points4;
     Color color1 = {255, 0, 0};
     Color color2 = {0, 255, 0};
     Color color3 = {0, 0, 255};
@@ -193,8 +189,6 @@ int main(int argc, char *argv[]){
     
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
-
-
     
     window = SDL_CreateWindow(
         "PTHREADS and SDL2 for OS!", 
@@ -220,53 +214,39 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-
-    Args arg1 = {renderer, points1, color1, q1, semaphore};
-    Args arg2 = {renderer, points2, color2, q2, semaphore};
-    Args arg3 = {renderer, points3, color3, q3, semaphore};
-    Args arg4 = {renderer, points4, color4, q4, semaphore};
+    Args arg1 = {renderer, N/THREAD_AMOUNT, color1, q1, semaphore};
+    Args arg2 = {renderer, N/THREAD_AMOUNT, color2, q2, semaphore};
+    Args arg3 = {renderer, N/THREAD_AMOUNT, color3, q3, semaphore};
+    Args arg4 = {renderer, N/THREAD_AMOUNT, color4, q4, semaphore};
     
     std::vector<Args> args_vector;
     args_vector.push_back(arg1);
     args_vector.push_back(arg2);
     args_vector.push_back(arg3);
     args_vector.push_back(arg4);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+    DrawCircle(renderer);
+    SDL_RenderPresent(renderer);
 
-    bool quit = false;
-    for(int x = 0; x < N; x++) {
-        SDL_Event event;
-        while(SDL_PollEvent(&event) != 0) {
-            if(event.type == SDL_QUIT) {
-                quit = true;
-            }
+    pthread_t threads [THREAD_AMOUNT];
+    for (int t = 0; t < THREAD_AMOUNT; t++) {
+        cout << "Creating a Thread! " << t << endl;
+        int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
+
+        if(rc) {
+            cerr << "Error creating a thread number " << t << endl;
+            exit(-1);
         }
-        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-        SDL_RenderClear(renderer);
-        DrawCircle(renderer);
-
-        pthread_t threads [THREAD_AMOUNT];
-        for (int t = 0; t < THREAD_AMOUNT; t++) {
-            cout << "Creating a Thread! " << t << endl;
-            int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
-
-            if(rc) {
-                cerr << "Error creating a thread number " << t << endl;
-                exit(-1);
-            }
-        }
-
-        for(int t = 0; t < THREAD_AMOUNT; t++) {
-            cout << "Joinning a thread " << t << endl;
-            pthread_join(threads[t], NULL);
-        }
-
-        SDL_RenderPresent(renderer);
-
-        //std::this_thread::sleep_for(std::chrono::seconds(1));
-
-        const float PI = float(IN)/float(N);
-        cout << PI << endl;
     }
+    // SDL_RenderClear(renderer);
+    //std::this_thread::sleep_for(std::chrono::seconds(1));
+    for(int t = 0; t < THREAD_AMOUNT; t++) {
+        cout << "Joinning a thread " << t << endl;
+        pthread_join(threads[t], NULL);
+    }
+
+    const float PI = float(IN)/float(N);
+    cout << PI << endl;
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
