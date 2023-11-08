@@ -97,8 +97,27 @@ bool verifyPI(SDL_Point p) {
     return distance <= circleRadius;
 }
 
+void DrawRandomPointsSequential(void* _args){
+    Args* args = (Args*)_args;
+    SDL_Color color = args->color;
+    SDL_Rect quadrant = args->quadrant;
+    int npoints = args->points;
 
-void* DrawRandomPoints(void* _args){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::uniform_int_distribution<> disx(quadrant.x, quadrant.x + quadrant.w);
+    std::uniform_int_distribution<> disy(quadrant.y, quadrant.y + quadrant.h);
+
+    for (int c = 0; c < npoints; c++) {
+        SDL_Point p = { disx(gen), disy(gen) };
+        SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, color.a);
+        DrawPoint(args->renderer, p.x, p.y);
+        IN += verifyPI(p);
+    }
+}
+
+void* DrawRandomPointsSync(void* _args){
     Args* args = (Args*)_args;
     SDL_Color color = args->color;
     SDL_Rect quadrant = args->quadrant;
@@ -123,7 +142,34 @@ void* DrawRandomPoints(void* _args){
     return NULL;
 }
 
+void* DrawRandomPoints(void* _args){
+    Args* args = (Args*)_args;
+    SDL_Color color = args->color;
+    SDL_Rect quadrant = args->quadrant;
+    int npoints = args->points;
+
+    sem_wait(args->semaphore);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    sem_post(args->semaphore);
+
+    std::uniform_int_distribution<> disx(quadrant.x, quadrant.x + quadrant.w);
+    std::uniform_int_distribution<> disy(quadrant.y, quadrant.y + quadrant.h);
+
+    for (int c = 0; c < npoints; c++) {
+        SDL_Point p = { disx(gen), disy(gen) };
+        SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, color.a);
+        DrawPoint(args->renderer, p.x, p.y);
+        IN += verifyPI(p);
+    }
+    return NULL;
+}
 int main(int argc, char *argv[]) {
+
+    sscanf(argv[2], "%d", &N);
+    char mode = argv[1][0];
+    cout << mode << N << endl;
+
     sem_t semaphore;
     sem_init(&semaphore, 0, 1);
     cout << "Semaphore created!" << endl;
@@ -137,6 +183,7 @@ int main(int argc, char *argv[]) {
     SDL_Rect q2 = {400, 0, quad, quad};
     SDL_Rect q3 = {0, 400, quad, quad};
     SDL_Rect q4 = {400, 400, quad, quad};
+    SDL_Rect q = {0, 0, quad * 2, quad * 2 };
 
     SDL_Window *window;
     SDL_Renderer *renderer;
@@ -148,6 +195,7 @@ int main(int argc, char *argv[]) {
     }
     SDL_SetWindowTitle(window, "PTHREADS and SDL2 for OS!");
 
+    Args argseq = {renderer, N, color1, q, &semaphore};
     Args arg1 = {renderer, N/THREAD_AMOUNT, color1, q1, &semaphore};
     Args arg2 = {renderer, N/THREAD_AMOUNT, color2, q2, &semaphore};
     Args arg3 = {renderer, N/THREAD_AMOUNT, color3, q3, &semaphore};
@@ -157,27 +205,58 @@ int main(int argc, char *argv[]) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
     SDL_RenderClear(renderer);
     DrawCircle(renderer);
+    using std::chrono::duration;
+    using std::chrono::high_resolution_clock;
+    auto t1 = high_resolution_clock::now();  
+    if(mode == 'p') {
+	pthread_t threads [THREAD_AMOUNT];
+	for (int t = 0; t < THREAD_AMOUNT; t++) {
+	    cout << "Creating a Thread! " << t << endl;
+	    int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
 
-    pthread_t threads [THREAD_AMOUNT];
-    for (int t = 0; t < THREAD_AMOUNT; t++) {
-        cout << "Creating a Thread! " << t << endl;
-        int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
+	    if (rc) {
+		cerr << "Error creating a thread number " << t << endl;
+		exit(-1);
+	    }
+	}
 
-        if (rc) {
-            cerr << "Error creating a thread number " << t << endl;
-            exit(-1);
-        }
+	for(int t = 0; t < THREAD_AMOUNT; t++) {
+	    cout << "Joining a thread " << t << endl;
+	    pthread_join(threads[t], NULL);
+	}
     }
 
-    for(int t = 0; t < THREAD_AMOUNT; t++) {
-        cout << "Joining a thread " << t << endl;
-        pthread_join(threads[t], NULL);
+    if(mode == 'u') {
+	pthread_t threads [THREAD_AMOUNT];
+	for (int t = 0; t < THREAD_AMOUNT; t++) {
+	    cout << "Creating a Thread! " << t << endl;
+	    int rc = pthread_create(&threads[t], NULL, DrawRandomPoints, (void*)&args_vector[t]);
+
+	    if (rc) {
+		cerr << "Error creating a thread number " << t << endl;
+		exit(-1);
+	    }
+	}
+
+
+	for(int t = 0; t < THREAD_AMOUNT; t++) {
+	    cout << "Joining a thread " << t << endl;
+	    pthread_join(threads[t], NULL);
+	}
     }
-    SDL_RenderPresent(renderer);
+
+    if(mode == 's') {
+	DrawRandomPointsSequential(&argseq);	
+    }
 
     const float PI = float(IN) / float(N) * 4.0;
     cout << "PI ~= " << PI << endl;
     
+    SDL_RenderPresent(renderer);
+
+    auto t2 = high_resolution_clock::now();  
+    duration<double, std::milli> ms_double = t2 - t1;
+    cout << ms_double.count() << " ms " << endl;
     SDL_Event event;
     for (;;) {
         while (SDL_PollEvent(&event)) {
