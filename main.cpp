@@ -12,7 +12,7 @@ const int WINDOW_WIDTH = 800;
 const int WINDOW_HEIGHT = 800;
 const int THREAD_AMOUNT = 4;
 int IN = 0;
-int N = 1000000;
+int N = 3000;
 
 using namespace std;
 
@@ -23,7 +23,6 @@ typedef struct Args {
     SDL_Rect quadrant;
     sem_t* semaphore;
 } Args;
-
 
 void MidpointCircleAlgorithm(
     SDL_Renderer *renderer, 
@@ -114,19 +113,17 @@ void* DrawRandomPoints(void* _args){
     std::uniform_int_distribution<> disy(quadrant.y, quadrant.y + quadrant.h);
 
     for (int c = 0; c < npoints; c++) {
-        sem_wait(args->semaphore);
         SDL_Point p = { disx(gen), disy(gen) };
+        sem_wait(args->semaphore);
         SDL_SetRenderDrawColor(args->renderer, color.r, color.g, color.b, color.a);
         DrawPoint(args->renderer, p.x, p.y);
         IN += verifyPI(p);
         sem_post(args->semaphore);
     }
-    cout << "ended" << endl;
-
     return NULL;
 }
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
     sem_t semaphore;
     sem_init(&semaphore, 0, 1);
     cout << "Semaphore created!" << endl;
@@ -141,46 +138,21 @@ int main(int argc, char *argv[]){
     SDL_Rect q3 = {0, 400, quad, quad};
     SDL_Rect q4 = {400, 400, quad, quad};
 
-    if(SDL_Init(SDL_INIT_VIDEO) < 0) {
-        return 1;
-    }
-    
-    SDL_Window *window = nullptr;
-    SDL_Renderer *renderer = nullptr;
-    window = SDL_CreateWindow(
-        "PTHREADS and SDL2 for OS!", 
-        SDL_WINDOWPOS_CENTERED, 
-        SDL_WINDOWPOS_CENTERED,
-        WINDOW_WIDTH,
-        WINDOW_HEIGHT,
-        SDL_WINDOW_SHOWN
-    );
-    if(window == nullptr) {
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window, &renderer);
+    if(window == nullptr || renderer == nullptr) {
         SDL_Quit();
         return 1;
     }
-
-    renderer = SDL_CreateRenderer(
-        window,
-        -1,
-        SDL_RENDERER_ACCELERATED
-    );
-    if(renderer == nullptr) {
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
+    SDL_SetWindowTitle(window, "PTHREADS and SDL2 for OS!");
 
     Args arg1 = {renderer, N/THREAD_AMOUNT, color1, q1, &semaphore};
     Args arg2 = {renderer, N/THREAD_AMOUNT, color2, q2, &semaphore};
     Args arg3 = {renderer, N/THREAD_AMOUNT, color3, q3, &semaphore};
     Args arg4 = {renderer, N/THREAD_AMOUNT, color4, q4, &semaphore};
-    
-    std::vector<Args> args_vector;
-    args_vector.push_back(arg1);
-    args_vector.push_back(arg2);
-    args_vector.push_back(arg3);
-    args_vector.push_back(arg4);
+    std::vector<Args> args_vector = { arg1, arg2, arg3, arg4 };
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
     SDL_RenderClear(renderer);
@@ -204,19 +176,17 @@ int main(int argc, char *argv[]){
     SDL_RenderPresent(renderer);
 
     const float PI = float(IN) / float(N) * 4.0;
-    cout << PI << endl;
+    cout << "PI ~= " << PI << endl;
     
     SDL_Event event;
     for (;;) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
-                goto fim;
+                SDL_DestroyRenderer(renderer);
+                SDL_DestroyWindow(window);
+                SDL_Quit();
+                return 0;
             }
         }
     }
-fim:
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-    return 0;
 }
