@@ -174,8 +174,6 @@ void* DrawRandomPoints(void* _args){
     return NULL;
 }
 int main(int argc, char *argv[]) {
-    printf("'%s' '%s'\n", argv[1], argv[2]);
-
     sscanf(argv[2], "%d", &N);
     char mode = argv[1][0];
 
@@ -252,13 +250,13 @@ int main(int argc, char *argv[]) {
     }
 
     const float PI = float(IN) / float(N) * 4.0;
-    cout << "PI ~= " << PI << endl;
+    cout << "PI ~= " << PI << "\t";
     
     SDL_RenderPresent(renderer);
 
     auto t2 = high_resolution_clock::now();  
     duration<double, std::milli> ms_double = t2 - t1;
-    cout << ms_double.count() << " ms " << endl;
+    cout << ms_double.count() << endl;
 
     SDL_Event event;
     for (;;) {
